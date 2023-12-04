@@ -46,10 +46,8 @@ INPUT
 
     counter[card.id] += 1
 
-    counter[card.id].times do
-      ((card.id + 1)..(card.id + card.matches)).each do |id|
-        counter[id] += 1
-      end
+    ((card.id + 1)..(card.id + card.matches)).each do |id|
+      counter[id] += counter[card.id]
     end
   end
 
