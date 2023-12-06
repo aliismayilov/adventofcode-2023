@@ -1,30 +1,78 @@
-class Map
-  attr_reader :lines, :cache
+class CustomRange
+  attr_reader :destination, :source, :length
 
+  def initialize(line)
+    @destination, @source, @length = line.split.map(&:to_i)
+  end
+
+  def source_range
+    source..(source + length - 1)
+  end
+
+  def overlaps?(range)
+    source_range.cover?(range.begin) ||
+      source_range.cover?(range.end)
+  end
+
+  def destination_range
+    destination..(destination + length)
+  end
+
+  def fetch(number)
+    destination + number - source
+  end
+end
+
+class Map
   def initialize
-    @lines = []
-    @cache = {}
+    @ranges = []
   end
 
   def add(line)
     return if line.strip == ""
-    @lines << line.split.map(&:to_i)
+    @ranges << CustomRange.new(line)
+  end
+
+  def ranges
+    @ranges.sort_by(&:source)
   end
 
   def fetch(number)
-    return cache[number] if cache[number]
+    ranges
+      .find { |range| range.source_range.cover?(number) }
+      &.fetch(number) || number
+  end
 
-    destination, source, range = lines.find do |destination, source, range|
-      ((source)..(source + range)).cover?(number)
+  def convert(seed_ranges)
+    converted = []
+
+    seed_ranges.each do |seed_range|
+      overlapping_ranges = ranges.select { |r| r.overlaps?(seed_range) }
+
+      if overlapping_ranges.none?
+        converted << seed_range
+        next
+      end
+
+      if !overlapping_ranges.first.source_range.cover?(seed_range.begin)
+        converted << (seed_range.begin..(overlapping_ranges.first.source_range.begin - 1))
+      end
+
+      overlapping_ranges.each do |range|
+        source_begin = [seed_range.begin, range.source_range.begin].max
+        source_end = [seed_range.end, range.source_range.end].min
+
+        converted << (range.fetch(source_begin)..range.fetch(source_end))
+      end
+
+      if !overlapping_ranges.last.source_range.cover?(seed_range.end)
+        converted << ((overlapping_ranges.last.source_range.end + 1)..seed_range.end)
+      end
     end
 
-    result = if range
-      destination + number - source
-    else
-      number
-    end
-
-    cache[number] = result
+    converted.reject do |range|
+      range.size == 0
+    end.to_a
   end
 end
 
@@ -72,7 +120,7 @@ INPUT
       seed_parts = line.split(":").last.split.map(&:to_i)
       (0...seed_parts.size).each do |index|
         next if index.odd?
-        seeds << (seed_parts[index]...(seed_parts[index] + seed_parts[index + 1]))
+        seeds << (seed_parts[index]..(seed_parts[index] + seed_parts[index + 1] - 1))
       end
       next
     elsif line.include?("seed-to-soil")
@@ -101,31 +149,20 @@ INPUT
     current_map&.add(line)
   end
 
-seeds.each do |seed_range|
-  fork do
-    result = seed_range
-      .to_a
-      .map do |seed|
-        humidity_to_location.fetch(
-          temperature_to_humidity.fetch(
-            light_to_temperature.fetch(
-              water_to_light.fetch(
-                fertilizer_to_water.fetch(
-                  soil_to_fertilizer.fetch(
-                    seed_to_soil.fetch(
-                      seed
-                    )
-                  )
-                )
-              )
+result = humidity_to_location.convert(
+  temperature_to_humidity.convert(
+    light_to_temperature.convert(
+      water_to_light.convert(
+        fertilizer_to_water.convert(
+          soil_to_fertilizer.convert(
+            seed_to_soil.convert(
+              seeds
             )
           )
         )
-      end
-      .min
+      )
+    )
+  )
+)
 
-    puts "result #{result}"
-  end
-end
-
-Process.waitall
+puts "result #{result.map(&:begin).min}"
