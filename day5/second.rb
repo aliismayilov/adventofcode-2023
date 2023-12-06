@@ -1,8 +1,9 @@
 class Map
-  attr_reader :lines
+  attr_reader :lines, :cache
 
   def initialize
     @lines = []
+    @cache = {}
   end
 
   def add(line)
@@ -11,15 +12,19 @@ class Map
   end
 
   def fetch(number)
+    return cache[number] if cache[number]
+
     destination, source, range = lines.find do |destination, source, range|
       ((source)..(source + range)).cover?(number)
     end
 
-    if range
+    result = if range
       destination + number - source
     else
       number
     end
+
+    cache[number] = result
   end
 end
 
@@ -49,7 +54,7 @@ if ENV["TEST"]
   exit
 end
 
-INPUT = File.read("test_input.txt")
+INPUT = File.read("input.txt")
 seeds = []
 seed_to_soil = nil
 soil_to_fertilizer = nil
@@ -67,7 +72,7 @@ INPUT
       seed_parts = line.split(":").last.split.map(&:to_i)
       (0...seed_parts.size).each do |index|
         next if index.odd?
-        seeds += (seed_parts[index]...(seed_parts[index] + seed_parts[index + 1])).to_a
+        seeds << (seed_parts[index]...(seed_parts[index] + seed_parts[index + 1]))
       end
       next
     elsif line.include?("seed-to-soil")
@@ -96,28 +101,31 @@ INPUT
     current_map&.add(line)
   end
 
-result = seeds
-  .map do |seed|
-    seed_to_soil.fetch(seed)
-  end
-  .map do |seed|
-    soil_to_fertilizer.fetch(seed)
-  end
-  .map do |seed|
-    fertilizer_to_water.fetch(seed)
-  end
-  .map do |seed|
-    water_to_light.fetch(seed)
-  end
-  .map do |seed|
-    light_to_temperature.fetch(seed)
-  end
-  .map do |seed|
-    temperature_to_humidity.fetch(seed)
-  end
-  .map do |seed|
-    humidity_to_location.fetch(seed)
-  end
-  .min
+seeds.each do |seed_range|
+  fork do
+    result = seed_range
+      .to_a
+      .map do |seed|
+        humidity_to_location.fetch(
+          temperature_to_humidity.fetch(
+            light_to_temperature.fetch(
+              water_to_light.fetch(
+                fertilizer_to_water.fetch(
+                  soil_to_fertilizer.fetch(
+                    seed_to_soil.fetch(
+                      seed
+                    )
+                  )
+                )
+              )
+            )
+          )
+        )
+      end
+      .min
 
-puts "result #{result}"
+    puts "result #{result}"
+  end
+end
+
+Process.waitall
