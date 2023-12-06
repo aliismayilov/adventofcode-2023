@@ -6,12 +6,13 @@ class CustomRange
   end
 
   def source_range
-    source..(source + length - 1)
+    source..(source + length)
   end
 
   def overlaps?(range)
     source_range.cover?(range.begin) ||
-      source_range.cover?(range.end)
+      source_range.cover?(range.end) ||
+      (range.cover?(source_range.begin) && range.cover?(source_range.end))
   end
 
   def destination_range
@@ -40,7 +41,7 @@ class Map
   def fetch(number)
     ranges
       .find { |range| range.source_range.cover?(number) }
-      &.fetch(number) || number
+      .fetch(number)
   end
 
   def convert(seed_ranges)
@@ -70,9 +71,7 @@ class Map
       end
     end
 
-    converted.reject do |range|
-      range.size == 0
-    end.to_a
+    converted
   end
 end
 
@@ -120,7 +119,7 @@ INPUT
       seed_parts = line.split(":").last.split.map(&:to_i)
       (0...seed_parts.size).each do |index|
         next if index.odd?
-        seeds << (seed_parts[index]..(seed_parts[index] + seed_parts[index + 1] - 1))
+        seeds << (seed_parts[index]..(seed_parts[index] + seed_parts[index + 1]))
       end
       next
     elsif line.include?("seed-to-soil")
